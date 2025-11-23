@@ -1,0 +1,354 @@
+-- LocalScript
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+
+local CameraFollow = false
+local tracking = false
+local trackingConn
+
+------------------------------------------------------------
+-- ScreenGui 생성
+------------------------------------------------------------
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "SafeTrackerUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.DisplayOrder = 100
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Frame
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 280, 0, 380)
+Frame.Position = UDim2.new(0, 15, 0, 15)
+Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+Frame.BorderSizePixel = 0
+Frame.Active = true
+Frame.Draggable = true
+Frame.ZIndex = 10
+Frame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.Parent = Frame
+
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = Color3.fromRGB(80, 80, 80)
+UIStroke.Thickness = 1.5
+UIStroke.Parent = Frame
+
+------------------------------------------------------------
+-- GUI 요소 함수
+------------------------------------------------------------
+local function CreateTextBox(placeholder,posY,default)
+	local box = Instance.new("TextBox")
+	box.Size = UDim2.new(1,-20,0,28)
+	box.Position = UDim2.new(0,10,0,posY)
+	box.PlaceholderText = placeholder
+	box.Text = default or ""
+	box.BackgroundColor3 = Color3.fromRGB(40,40,40)
+	box.TextColor3 = Color3.fromRGB(220,220,220)
+	box.BorderSizePixel = 0
+	box.ZIndex = 11
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0,6)
+	corner.Parent = box
+	box.Parent = Frame
+	return box
+end
+
+local function CreateButton(text,posY,color)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(1,-20,0,32)
+	btn.Position = UDim2.new(0,10,0,posY)
+	btn.Text = text
+	btn.BackgroundColor3 = color
+	btn.TextColor3 = Color3.fromRGB(255,255,255)
+	btn.Font = Enum.Font.GothamSemibold
+	btn.TextSize = 16
+	btn.BorderSizePixel = 0
+	btn.ZIndex = 12
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0,6)
+	corner.Parent = btn
+	btn.Parent = Frame
+	return btn
+end
+
+local function CreateLabel(text,posY)
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(1,-20,0,22)
+	lbl.Position = UDim2.new(0,10,0,posY)
+	lbl.BackgroundTransparency = 1
+	lbl.TextColor3 = Color3.fromRGB(200,200,200)
+	lbl.Font = Enum.Font.GothamBold
+	lbl.TextSize = 18
+	lbl.Text = text
+	lbl.ZIndex = 11
+	lbl.Parent = Frame
+	return lbl
+end
+
+------------------------------------------------------------
+-- GUI 구성
+------------------------------------------------------------
+CreateLabel("Safe Tracker", 10)
+local NameBox = CreateTextBox("Enter Player Name", 45)
+local RadiusBox = CreateTextBox("Radius (Studs)", 90, "8")
+local SpeedBox = CreateTextBox("Speed", 135, "8")
+
+local StartBtn = CreateButton("Start Tracking", 180, Color3.fromRGB(60,130,220))
+local StopBtn = CreateButton("Stop Tracking", 225, Color3.fromRGB(200,50,50))
+local CamBtn = CreateButton("Camera Follow: OFF", 270, Color3.fromRGB(90,90,90))
+
+-- Health Bar
+local HealthBar = Instance.new("Frame")
+HealthBar.Size = UDim2.new(1,-20,0,20)
+HealthBar.Position = UDim2.new(0,10,0,315)
+HealthBar.BackgroundColor3 = Color3.fromRGB(50,50,50)
+HealthBar.ZIndex = 12
+HealthBar.Parent = Frame
+
+local HealthFill = Instance.new("Frame")
+HealthFill.Size = UDim2.new(1,0,1,0)
+HealthFill.BackgroundColor3 = Color3.fromRGB(0,220,0)
+HealthFill.ZIndex = 13
+HealthFill.Parent = HealthBar
+
+local HealthCorner = Instance.new("UICorner")
+HealthCorner.CornerRadius = UDim.new(0,4)
+HealthCorner.Parent = HealthFill
+
+-- Radar
+local Radar = Instance.new("Frame")
+Radar.Size = UDim2.new(0,100,0,100)
+Radar.Position = UDim2.new(1,-110,0,15)
+Radar.BackgroundColor3 = Color3.fromRGB(30,30,30)
+Radar.ZIndex = 12
+Radar.Parent = ScreenGui
+
+local RadarCorner = Instance.new("UICorner")
+RadarCorner.CornerRadius = UDim.new(0,50)
+RadarCorner.Parent = Radar
+
+local RadarDot = Instance.new("Frame")
+RadarDot.Size = UDim2.new(0,10,0,10)
+RadarDot.AnchorPoint = Vector2.new(0.5,0.5)
+RadarDot.BackgroundColor3 = Color3.fromRGB(255,0,0)
+RadarDot.ZIndex = 13
+RadarDot.Parent = Radar
+
+local DotCorner = Instance.new("UICorner")
+DotCorner.CornerRadius = UDim.new(1,0)
+DotCorner.Parent = RadarDot
+
+------------------------------------------------------------
+-- Player Name 자동완성 UI
+------------------------------------------------------------
+local AutoCompleteFrame = Instance.new("Frame")
+AutoCompleteFrame.Size = UDim2.new(1,-20,0,150)
+AutoCompleteFrame.Position = UDim2.new(0,10,0,73)
+AutoCompleteFrame.BackgroundColor3 = Color3.fromRGB(35,35,35)
+AutoCompleteFrame.BorderSizePixel = 0
+AutoCompleteFrame.Visible = false
+AutoCompleteFrame.ZIndex = 12
+AutoCompleteFrame.Parent = Frame
+
+local AutoCompleteLayout = Instance.new("UIListLayout")
+AutoCompleteLayout.SortOrder = Enum.SortOrder.LayoutOrder
+AutoCompleteLayout.Parent = AutoCompleteFrame
+
+local function UpdateAutoComplete(text)
+	AutoCompleteFrame:ClearAllChildren()
+	if text == "" then
+		AutoCompleteFrame.Visible = false
+		return
+	end
+	local matched = {}
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr.Name:lower():find(text:lower()) then
+			table.insert(matched, plr)
+		end
+	end
+	if #matched == 0 then
+		AutoCompleteFrame.Visible = false
+		return
+	end
+	for i, plr in ipairs(matched) do
+		local item = Instance.new("TextButton")
+		item.Size = UDim2.new(1,0,0,30)
+		item.BackgroundColor3 = Color3.fromRGB(50,50,50)
+		item.BorderSizePixel = 0
+		item.Text = plr.Name
+		item.TextColor3 = Color3.fromRGB(255,255,255)
+		item.Font = Enum.Font.Gotham
+		item.TextSize = 14
+		item.ZIndex = 13
+		item.Parent = AutoCompleteFrame
+
+		local avatar = Instance.new("ImageLabel")
+		avatar.Size = UDim2.new(0,24,0,24)
+		avatar.Position = UDim2.new(1,-30,0,3)
+		avatar.Image = Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
+		avatar.BackgroundTransparency = 1
+		avatar.ZIndex = 14
+		avatar.Parent = item
+
+		item.MouseButton1Click:Connect(function()
+			NameBox.Text = plr.Name
+			AutoCompleteFrame.Visible = false
+		end)
+	end
+	AutoCompleteFrame.Visible = true
+end
+
+NameBox:GetPropertyChangedSignal("Text"):Connect(function()
+	UpdateAutoComplete(NameBox.Text)
+end)
+
+------------------------------------------------------------
+-- Levenshtein 거리
+------------------------------------------------------------
+local function Levenshtein(a,b)
+	a,b=a:lower(),b:lower()
+	local m,n=#a,#b
+	local d={}
+	for i=0,m do d[i]={[0]=i} end
+	for j=0,n do d[0][j]=j end
+	for i=1,m do
+		for j=1,n do
+			local cost = (a:sub(i,i)==b:sub(j,j)) and 0 or 1
+			d[i][j]=math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+cost)
+		end
+	end
+	return d[m][n]
+end
+
+local function FindClosestPlayer(name)
+	local best,bestDist=nil,math.huge
+	for _,plr in ipairs(Players:GetPlayers()) do
+		local dist=Levenshtein(name,plr.Name)
+		if dist<bestDist then bestDist, best = dist, plr end
+	end
+	return best
+end
+
+------------------------------------------------------------
+-- Radar 업데이트
+------------------------------------------------------------
+local function UpdateRadar(target)
+	if not target.Character then return end
+	local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	local thrp = target.Character:FindFirstChild("HumanoidRootPart")
+	if hrp and thrp then
+		local offset = (thrp.Position - hrp.Position)/50
+		offset = Vector3.new(math.clamp(offset.X,-45,45),0,math.clamp(offset.Z,-45,45))
+		RadarDot.Position = UDim2.new(0.5 + offset.X/100,0,0.5 + offset.Z/100,0)
+	end
+end
+
+------------------------------------------------------------
+-- 추적 로직
+------------------------------------------------------------
+local function StopTracking()
+	tracking=false
+	if trackingConn then trackingConn:Disconnect() trackingConn=nil end
+end
+
+local function StartTracking(target)
+	StopTracking()
+	tracking=true
+
+	local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+	local hrp = char:WaitForChild("HumanoidRootPart")
+
+	-- Ghost 모드
+	for _,p in ipairs(char:GetDescendants()) do
+		if p:IsA("BasePart") then
+			p.Transparency=0.7
+			p.CanCollide=false
+		end
+	end
+
+	local prevError = Vector3.new(0,0,0)
+	local Kp,Kd = 4,0.6
+	local minDistance = 3
+
+	trackingConn = RunService.RenderStepped:Connect(function()
+		if not tracking then return end
+		if not target.Character then return end
+		local targetHRP = target.Character:FindFirstChild("HumanoidRootPart")
+		local targetHead = target.Character:FindFirstChild("Head")
+		local targetHum = target.Character:FindFirstChild("Humanoid")
+		if not targetHRP or not targetHead or not targetHum then return end
+
+		local radius = tonumber(RadiusBox.Text) or 8
+		local speed = tonumber(SpeedBox.Text) or 8
+		local angle = tick()*speed*2
+		local offset = Vector3.new(math.cos(angle)*radius,3,math.sin(angle)*radius)
+		local desiredPos = targetHRP.Position + offset
+
+		local dir = (desiredPos - targetHRP.Position)
+		if dir.Magnitude < minDistance then
+			desiredPos = targetHRP.Position + dir.Unit * minDistance
+		end
+
+		local direction = (targetHead.Position - desiredPos)
+		local error = direction.Unit
+		local correction = (error * Kp + (error - prevError) * Kd)
+		prevError = error
+		hrp.CFrame = CFrame.new(desiredPos, desiredPos + correction)
+
+		if CameraFollow then
+			local headOffset = Vector3.new(0,LocalPlayer.Character.Head.Size.Y/2,0)
+			local camPos = hrp.Position + headOffset
+			workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
+			workspace.CurrentCamera.CFrame = CFrame.new(camPos, targetHead.Position)
+		end
+
+		HealthFill.Size = UDim2.new(targetHum.Health/targetHum.MaxHealth,0,1,0)
+		UpdateRadar(target)
+	end)
+end
+
+------------------------------------------------------------
+-- 버튼 이벤트
+------------------------------------------------------------
+StartBtn.MouseButton1Click:Connect(function()
+	local name = NameBox.Text
+	if name=="" then return end
+	local target = Players:FindFirstChild(name) or FindClosestPlayer(name)
+	if not target then warn("플레이어 없음") return end
+	StartTracking(target)
+end)
+
+StopBtn.MouseButton1Click:Connect(StopTracking)
+
+CamBtn.MouseButton1Click:Connect(function()
+	CameraFollow = not CameraFollow
+	CamBtn.Text = CameraFollow and "Camera Follow: ON" or "Camera Follow: OFF"
+end)
+
+------------------------------------------------------------
+-- 키보드 단축키
+------------------------------------------------------------
+UserInputService.InputBegan:Connect(function(input, gpe)
+	if gpe then return end
+	if input.KeyCode == Enum.KeyCode.Seven then
+		CameraFollow = not CameraFollow
+		CamBtn.Text = CameraFollow and "Camera Follow: ON" or "Camera Follow: OFF"
+	end
+	if input.KeyCode == Enum.KeyCode.Five then
+		if tracking then
+			StopTracking()
+		else
+			local name = NameBox.Text
+			if name~="" then
+				local target = Players:FindFirstChild(name) or FindClosestPlayer(name)
+				if target then StartTracking(target)
+				else warn("플레이어 없음") end
+			end
+		end
+	end
+end)
