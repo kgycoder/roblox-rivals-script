@@ -9,7 +9,7 @@ local tracking = false
 local trackingConn
 
 ------------------------------------------------------------
--- ScreenGui 생성
+-- ScreenGui 생성 (기존 코드 그대로)
 ------------------------------------------------------------
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "SafeTrackerUI"
@@ -39,7 +39,7 @@ UIStroke.Thickness = 1.5
 UIStroke.Parent = Frame
 
 ------------------------------------------------------------
--- GUI 요소 함수
+-- GUI 요소 함수 (기존 코드 그대로)
 ------------------------------------------------------------
 local function CreateTextBox(placeholder,posY,default)
 	local box = Instance.new("TextBox")
@@ -91,7 +91,7 @@ local function CreateLabel(text,posY)
 end
 
 ------------------------------------------------------------
--- GUI 구성
+-- GUI 구성 (기존 코드 그대로)
 ------------------------------------------------------------
 CreateLabel("Safe Tracker", 10)
 local NameBox = CreateTextBox("Enter Player Name", 45)
@@ -144,7 +144,7 @@ DotCorner.CornerRadius = UDim.new(1,0)
 DotCorner.Parent = RadarDot
 
 ------------------------------------------------------------
--- Player Name 자동완성 UI
+-- Player Name 자동완성 UI (기존 코드 그대로)
 ------------------------------------------------------------
 local AutoCompleteFrame = Instance.new("Frame")
 AutoCompleteFrame.Size = UDim2.new(1,-20,0,150)
@@ -208,12 +208,12 @@ NameBox:GetPropertyChangedSignal("Text"):Connect(function()
 end)
 
 ------------------------------------------------------------
--- Levenshtein 거리
+-- Levenshtein 거리 (기존 코드 그대로)
 ------------------------------------------------------------
 local function Levenshtein(a,b)
 	a,b=a:lower(),b:lower()
 	local m,n=#a,#b
-	local d={}
+	local d={ }
 	for i=0,m do d[i]={[0]=i} end
 	for j=0,n do d[0][j]=j end
 	for i=1,m do
@@ -235,7 +235,7 @@ local function FindClosestPlayer(name)
 end
 
 ------------------------------------------------------------
--- Radar 업데이트
+-- Radar 업데이트 (기존 코드 그대로)
 ------------------------------------------------------------
 local function UpdateRadar(target)
 	if not target.Character then return end
@@ -249,7 +249,76 @@ local function UpdateRadar(target)
 end
 
 ------------------------------------------------------------
--- 추적 로직
+-- Highlight 효과 (무지개 윤곽, Humanoid 재생성 지원)
+------------------------------------------------------------
+local playerHighlights = {}
+
+local function ApplyHighlight(player)
+	if not player.Character then return end
+	-- 이미 있으면 제거 후 재생성
+	if playerHighlights[player] then
+		playerHighlights[player]:Destroy()
+	end
+	local hl = Instance.new("Highlight")
+	hl.Adornee = player.Character
+	hl.FillTransparency = 1
+	hl.OutlineTransparency = 0
+	hl.Parent = player.Character
+	playerHighlights[player] = hl
+end
+
+-- 플레이어 캐릭터 초기 및 재생성 감지
+local function MonitorPlayer(player)
+	if player == LocalPlayer then return end
+
+	-- 캐릭터가 존재하면 바로 적용
+	if player.Character then
+		ApplyHighlight(player)
+	end
+
+	-- 캐릭터가 새로 생성될 때마다 적용
+	player.CharacterAdded:Connect(function(char)
+		-- HumanoidRootPart가 존재할 때까지 기다림
+		local hrp = char:WaitForChild("HumanoidRootPart", 5)
+		local hum = char:WaitForChild("Humanoid", 5)
+		if hrp and hum then
+			ApplyHighlight(player)
+		end
+
+		-- 휴머노이드가 죽고 다시 생성될 경우 재적용
+		hum.Died:Connect(function()
+			-- 캐릭터가 바로 새로 생성되면 CharacterAdded 이벤트에서 처리됨
+			-- 새 Highlight는 CharacterAdded에서 처리
+		end)
+	end)
+end
+
+-- 기존 플레이어에 적용
+for _, plr in ipairs(Players:GetPlayers()) do
+	MonitorPlayer(plr)
+end
+
+-- 새로 들어오는 플레이어에 적용
+Players.PlayerAdded:Connect(MonitorPlayer)
+
+-- 플레이어 제거 시 Highlight 삭제
+Players.PlayerRemoving:Connect(function(plr)
+	if playerHighlights[plr] then
+		playerHighlights[plr]:Destroy()
+		playerHighlights[plr] = nil
+	end
+end)
+
+-- 무지개 색 변화
+RunService.RenderStepped:Connect(function()
+	local t = tick()
+	for _, hl in pairs(playerHighlights) do
+		hl.OutlineColor = Color3.fromHSV((t % 5)/5, 1, 1)
+	end
+end)
+
+------------------------------------------------------------
+-- 추적 로직 (기존 코드 그대로)
 ------------------------------------------------------------
 local function StopTracking()
 	tracking=false
@@ -313,7 +382,7 @@ local function StartTracking(target)
 end
 
 ------------------------------------------------------------
--- 버튼 이벤트
+-- 버튼 이벤트 (기존 코드 그대로)
 ------------------------------------------------------------
 StartBtn.MouseButton1Click:Connect(function()
 	local name = NameBox.Text
@@ -331,7 +400,7 @@ CamBtn.MouseButton1Click:Connect(function()
 end)
 
 ------------------------------------------------------------
--- 키보드 단축키
+-- 키보드 단축키 (기존 코드 그대로)
 ------------------------------------------------------------
 UserInputService.InputBegan:Connect(function(input, gpe)
 	if gpe then return end
