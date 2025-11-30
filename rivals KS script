@@ -421,3 +421,32 @@ UserInputService.InputBegan:Connect(function(input, gpe)
 		end
 	end
 end)
+
+------------------------------------------------------------
+-- Barriers 삭제 기능 추가
+------------------------------------------------------------
+
+local function DeleteBarriersRecursive(parent)
+	for _, obj in ipairs(parent:GetChildren()) do
+		if obj.Name == "Barriers" then
+			obj:Destroy()
+		end
+		-- 하위 객체들도 반복 검사
+		DeleteBarriersRecursive(obj)
+	end
+end
+
+-- 스크립트 실행 즉시 Workspace 전체 검사 후 Barriers 삭제
+task.spawn(function()
+    -- 약간의 딜레이 후 실행(초기 로딩 대비)
+    task.wait(1)
+    DeleteBarriersRecursive(workspace)
+end)
+
+-- 5초마다 Barriers 자동 재삭제 (누군가 스폰 시 다시 생겨도 제거)
+task.spawn(function()
+	while true do
+		DeleteBarriersRecursive(workspace)
+		task.wait(5)
+	end
+end)
